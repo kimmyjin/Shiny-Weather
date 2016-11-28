@@ -1,5 +1,5 @@
 ---
-title: "Sta 523 - Midterm 1 - Spring 2016"
+title: "Sta 523 - Midterm 2 - Spring 2016"
 output: rmarkdown::html_document
 runtime: shiny
 ---

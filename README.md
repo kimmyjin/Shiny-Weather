@@ -1,4 +1,4 @@
-Sta 523 - Midterm 1 - Spring 2016"
+Sta 523 - Midterm 2 - Spring 2016
 -----------
 
 ### Rules
