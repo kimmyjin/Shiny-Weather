@@ -49,9 +49,69 @@ Some additional requirements:
 <!-- Include your write up here and or below -->
 
 ```{r}
-get_darksky = function(key, lat, long, date = NULL)
-{
+# load library
+library(rvest)
+library(dplyr)
+library(stringr)
+library(rjson)
+library(jsonlite)
+library(Rcpp)
+library(anytime)
+library(ggplot2)
+library(shiny)
+library(ggmap)
+```
 
+
+```{r}
+# date = "2016-11-03"
+# key = "3fb318b0ba046bde99d853585774584e"
+get_darksky = function(key, lat, long, date = NULL){
+
+  if(is.null(date)){
+    lat = 36.0256090
+    long = -78.9853810
+    url =paste0("https://api.darksky.net/forecast/",key,"/" ,lat,",",long)
+  }
+  else{
+    url = NULL
+    date = paste(date, "12:00:00 EDT")
+    date = paste(date(date) -3, "12:00:00 EDT")
+    for (i in 1:5){
+      newdate = paste(date(date) + i, "12:00:00 EDT")
+      url1 = paste0("https://api.darksky.net/forecast/",key,"/",lat,",",long,",",as.numeric(as.POSIXlt(newdate)))
+    url = c(url,url1)
+    }
+  }
+# j1 = fromJSON(url[1])
+# h1 = as.data.frame(j1$hourly$data)
+# h1$time = anytime(as.numeric(h1$time))
+# j2 = fromJSON(url[2])
+# h2 = as.data.frame(j2$hourly$data)
+# h2$time = anytime(as.numeric(h2$time))
+# j3 = fromJSON(url[3])
+# h3 = as.data.frame(j3$hourly$data)
+# h3$time = anytime(as.numeric(h3$time))
+# j4 = fromJSON(url[4])
+# h4 = as.data.frame(j4$hourly$data)
+# h4$time = anytime(as.numeric(h4$time))
+# m1 = merge(h1,h4, all = TRUE)
+
+  for(i in seq_along(url)){
+    if(i == 1){
+    json = fromJSON(url[i])
+    hourlydate = as.data.frame(json$hourly$data)
+    hourlydate$time = anytime(as.numeric(hourlydate$time))
+    data = hourlydate
+    }
+    else{
+    json = fromJSON(url[i])
+    hourlydate = as.data.frame(json$hourly$data)
+    hourlydate$time = anytime(as.numeric(hourlydate$time))
+    data = merge(data, hourlydate,all = TRUE)
+    }
+  }
+return(data)
 }
 ```
 
@@ -78,9 +138,28 @@ Your final data frame should meet the following requirements
 <!-- Include your write up here and or below -->
 
 ```{r}
-# Create your location data frame here
+url = paste0("https://en.wikipedia.org/wiki/List_of_United_States_cities_by_population")
+page = read_html(url)
 
-us_locs = data.frame()
+table = page %>%
+  html_nodes(xpath = '//*[@id="mw-content-text"]/table[4]') %>%
+  html_table()
+table = table[[1]]
+names(table)[3] = paste("State")
+
+table$Change = str_extract(table$Change, "(\\+|\\−)\\d+\\.\\d+\\%")
+table$City = str_replace(table$City, "\\[\\d+\\]", "")
+table$`2014 land area` = str_replace(table$`2014 land area`, "\\d+\\♠", "")
+table$`2010 population density` = str_replace(table$`2010 population density`, "\\d+\\♠", "")
+table$latitude = as.numeric(str_extract(location, "\\d+\\.\\d+"))
+table$longitude = as.numeric(str_extract(location, "\\-\\d+\\.\\d+"))
+table$`2010 Census` = as.numeric(str_replace_all(table$`2010 Census`, ",", ""))
+table$`2015 estimate` = as.numeric(str_replace_all(table$`2015 estimate`, ",", ""))
+
+# Create your location data frame here
+us_locs = table %>% 
+  select(-Location) %>%
+  filter(`2010 Census` > 500000)
 ```
 
 
@@ -113,24 +192,79 @@ Your app should have the following features:
 
 shinyApp(
   ui = fluidPage(
-     titlePanel("Old Faithful Geyser Data"),
-     
-     sidebarLayout(
-        sidebarPanel(
-           sliderInput("bins", "Number of bins:",  min = 1, max = 50, value = 30)
-        ),
+     titlePanel("Hourly Weather Forecast"),
+       # sidebarPanel(
+       #   sliderInput("bins", "Number of bins:",  min = 1, max = 50, value = 30)
+       # ),
+        # mainPanel(
+        #   h4("results"),
+        #    plotOutput("distPlot"),
+        #    tableOutput("table1"),
+        #    tableOutput("table2")
+        # ),
+         selectInput(inputId = "city", 
+                      label = "Please choose the city",
+                      choices = us_locs$City),
+         hr(),
+         selectInput(inputId = "second",
+                     label = "Please select second quantity",
+                     choices = c("precipIntensity", "precipProbability", "apparentTemperature", "dewPoint", "humidity", "windSpeed", "windBearing", "visibility","cloudCover","pressure"),
+                     selected = "humidity"
+                     ),
+         h4("Historical Date"),
+         dateInput(inputId = "date",
+                 label = "Please specify the date:",
+                 value = "2016-11-03",
+                 format = "yyyy-mm-dd"
+       ),
+        hr(),
+        textInput(inputId = "key", 
+                  label = "key", 
+                  value = "3fb318b0ba046bde99d853585774584e"),
+      # sidebarLayout(
+      #  sidebarPanel(
+      #    sliderInput("bins", "Number of bins:",  min = 1, max = 50, value = 30)
+      #  ),
         mainPanel(
-           plotOutput("distPlot")
+          h4("results"),
+           plotOutput("distPlot"),
+           tableOutput("table1"),
+           plotOutput("plot1")
         )
-     )
+      #)
   ),
   server = function(input, output, session) 
   {   
-     output$distPlot= renderPlot(
-     {
-        x    = faithful[, 2] 
-        bins = seq(min(x), max(x), length.out = input$bins + 1)
-        hist(x, breaks = bins, col = 'darkgray', border = 'white')
+    key = reactive({input$key})
+    location = reactive({
+      geocode(input$city)
+    })
+    lat = reactive({location()[[2]]})
+    long = reactive({location()[[1]]})
+    date = reactive({input$date})
+    
+    result = reactive({
+      get_darksky(key = key(),
+                  lat = lat(),
+                  long = long(),
+                  date = date())
+    })
+    
+    second = reactive({input$second})
+    
+     output$table1 = renderTable({
+        aa1 = lat()
+        bb1 = long()
+        data.frame("latitude" = aa1, "longitude" = bb1)
+     })
+     output$distPlot = renderPlot({
+       plot(result()$temperature, type = "l", xlab = "Time", ylab = "Temperature")
+     })
+    
+     output$plot1 = renderPlot({
+         if(length(second()) >0){
+          plot(result()[,second()],type = "l", xlab = "Time", ylab = "second feature")
+        }
      })
   }
 )
