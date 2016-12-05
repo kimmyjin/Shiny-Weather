@@ -66,8 +66,8 @@ library(ggmap)
 
 
 ```{r}
-# date = "2016-11-03"
-# key = "3fb318b0ba046bde99d853585774584e"
+ date = "2016-11-03"
+ key = "3fb318b0ba046bde99d853585774584e"
 
 # get_darksky functions
 get_darksky = function(key, lat, long, date = NULL){
@@ -85,7 +85,7 @@ get_darksky = function(key, lat, long, date = NULL){
     # starting date from two days before
     date = paste(date(date) -3, "12:00:00 EDT")
     # loop the date from the starting date to continuous five days(the two days following the input date)
-    for (i in 1:5){
+    for (i in 1:4){
       newdate = paste(date(date) + i, "12:00:00 EDT")
       # retrive the url for each of the date
       url1 = paste0("https://api.darksky.net/forecast/",key,"/",lat,",",long,",",as.numeric(as.POSIXlt(newdate)))
@@ -93,6 +93,10 @@ get_darksky = function(key, lat, long, date = NULL){
       url = c(url,url1)
     }
   }
+  # for (i in 1:4){
+  #     newdate = paste(date(date) + i, "12:00:00 EDT")
+  #     print(newdate)
+  # }
 # j1 = fromJSON(url[1])
 # h1 = as.data.frame(j1$hourly$data)
 # h1$time = anytime(as.numeric(h1$time))
@@ -248,14 +252,19 @@ shinyApp(
          # input selection for second quantity, options come from task1 with only the continuous variables 
          selectInput(inputId = "second",
                      label = "Please select second quantity",
-                     choices = c("No Selection","precipIntensity", "precipProbability", "apparentTemperature", "dewPoint", "humidity", "windSpeed", "windBearing", "visibility","cloudCover","pressure"),
+                     choices = c("No Selection"),
                      selected = "No Selection"
                      ),
+         hr(),
          h4("Historical Date"),
+         checkboxInput(inputId = "check",
+                        label = "check if you want historical weather",
+                        value = FALSE
+         ),
+         hr(),
          # input selection of data time 
          dateInput(inputId = "date",
                  label = "Please specify the date:",
-                 value = "2016-11-03",
                  format = "yyyy-mm-dd"
        ),
         hr(),
@@ -277,6 +286,7 @@ shinyApp(
             plotOutput("plot1")
           ),
            # always display table1
+           textOutput("text1"),
            tableOutput("table1")
         )
   ),
@@ -295,17 +305,42 @@ shinyApp(
     long = reactive({location()[[1]]})
     # date reactvie to the input date value
     date = reactive({input$date})
+    # retrive numerical results from result() and return the colnames
+    features = reactive({
+      df = result()[,sapply(result(), is.numeric)] %>%
+        select(-temperature)
+      return(colnames(df))
+    })
     
+    observe({
+      updateSelectInput(session,
+                        inputId = "second",
+                        label = "Please select second quantity", 
+                        choices = c("No Selection",paste(features())),
+                        selected = "No Selection")
+    })
     # result reactive to the get_darksky function taking key, lat, long and date as the input and returns a data frame result 
     result = reactive({
+      # when the date is not current date or forcast is checked
+      if(input$date != Sys.Date()||input$check == TRUE){
       get_darksky(key = key(),
                   lat = lat(),
                   long = long(),
                   date = date())
+      }
+      # else condition 
+      else{
+      get_darksky(key = key(),
+                  lat = lat(),
+                  long = long())
+      }
     })
     
     # second reactive to the input of second selection 
     second = reactive({input$second})
+      output$text1 = renderText({
+        print(paste("The latitude and longitude in", input$city, ":"))
+      })
     # output table as a data frame displaying the latitude and longitude respect to the input city 
     output$table1 = renderTable({
         aa1 = lat()
@@ -314,24 +349,37 @@ shinyApp(
      })
      # output plot when second is not no selection, the plot is the trend plot of temperature and the second selection regarding the input city 
      output$distPlot = renderPlot({
-       ggplot(result(), aes(x = time)) +
-         geom_line(aes(y = result()$temperature, color = "temperature")) +  
-         geom_line(aes(y = result()[,second()], color = paste(second()))) +
+       # create the new melted data frame called mm combing temperature and the second selected quantity, which will used for ggplot 
+       mm = melt(result()[,c("time","temperature",second())], id.var="time")
+       # ggplot the new data frame with repect to the same x axis and different y response
+       ggplot(mm, aes(x = time, y = value)) + 
+         geom_line(aes(color = variable)) + 
+         # set ggplot title name
          ggtitle(paste("Temperature and" ,second(), "record in", input$city)) +
+         # transform x axis into hourly time format
          scale_x_datetime(labels = date_format("%y/%m/%d :%H:%M"), breaks=pretty_breaks(n=45)) +
-         theme(axis.text.x = element_text(angle=45,hjust=1)) + 
-         labs(x="Hours",y="") + 
-         theme(plot.title = element_text(family = "Trebuchet MS", color="#666666", face="bold", size=32, hjust=0))
-     })
+         labs(x="Hours") +
+         # modify x axis text display 
+         theme(axis.text.x = element_text(angle=45,hjust=1)) +
+         # generate the facet grid 
+         facet_grid(variable ~ ., scales = "free_y") + 
+         theme(legend.position = "none") +
+         theme(plot.title = element_text(family = "Trebuchet MS", color="#666666", face="bold", size=24, hjust=0))
+      })
     # output plot when second is  no selection, the plot is the trend plot of temperature regarding the input city 
      output$plot1 = renderPlot({
        ggplot(result(), aes(x = time, y = result()$temperature)) +
          geom_line() +
+         # set ggplot title name
          ggtitle(paste("Temperature record in", input$city)) +
+         # transform x axis into hourly time format
          scale_x_datetime(labels = date_format("%y/%m/%d :%H:%M"), breaks=pretty_breaks(n=45)) +
+         # modify x axis text display 
          theme(axis.text.x = element_text(angle=45,hjust=1)) + 
+         # modify labs of x and y axis 
          labs(x="Hours",y="Temperature") + 
-         theme(plot.title = element_text(family = "Trebuchet MS", color="#666666", face="bold", size=32, hjust=0))
+         # modify title font and size 
+         theme(plot.title = element_text(family = "Trebuchet MS", color="#666666", face="bold", size=24, hjust=0))
      })
   }
 )
