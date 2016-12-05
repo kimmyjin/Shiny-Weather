@@ -62,6 +62,9 @@ library(anytime)
 library(ggplot2)
 library(shiny)
 library(ggmap)
+library(reshape2)
+library(scales)
+library(lubridate)
 ```
 
 
@@ -263,10 +266,15 @@ shinyApp(
          ),
          hr(),
          # input selection of data time 
-         dateInput(inputId = "date",
-                 label = "Please specify the date:",
-                 format = "yyyy-mm-dd"
-       ),
+         conditionalPanel(condition = "input.check == true",
+                          dateInput(inputId = "date",
+                          label = "Please specify the date:",
+                          format = "yyyy-mm-dd")
+         ),
+       #   dateInput(inputId = "date",
+       #           label = "Please specify the date:",
+       #           format = "yyyy-mm-dd"
+       # ),
         hr(),
      # text input of key values, the default is the value of mine 
         textInput(inputId = "key", 
@@ -311,7 +319,7 @@ shinyApp(
         select(-temperature)
       return(colnames(df))
     })
-    
+    # update input selection of second regarding to previous selected column names 
     observe({
       updateSelectInput(session,
                         inputId = "second",
@@ -322,7 +330,7 @@ shinyApp(
     # result reactive to the get_darksky function taking key, lat, long and date as the input and returns a data frame result 
     result = reactive({
       # when the date is not current date or forcast is checked
-      if(input$date != Sys.Date()||input$check == TRUE){
+      if(input$check == TRUE){
       get_darksky(key = key(),
                   lat = lat(),
                   long = long(),
@@ -349,38 +357,38 @@ shinyApp(
      })
      # output plot when second is not no selection, the plot is the trend plot of temperature and the second selection regarding the input city 
      output$distPlot = renderPlot({
-       # create the new melted data frame called mm combing temperature and the second selected quantity, which will used for ggplot 
+       # create the new melted data frame called mm combing temperature and the second selected quantity, which will used for ggplot
        mm = melt(result()[,c("time","temperature",second())], id.var="time")
        # ggplot the new data frame with repect to the same x axis and different y response
-       ggplot(mm, aes(x = time, y = value)) + 
-         geom_line(aes(color = variable)) + 
+       ggplot(mm, aes(x = time, y = value)) +
+         geom_line(aes(color = variable)) +
          # set ggplot title name
          ggtitle(paste("Temperature and" ,second(), "record in", input$city)) +
          # transform x axis into hourly time format
          scale_x_datetime(labels = date_format("%y/%m/%d :%H:%M"), breaks=pretty_breaks(n=45)) +
          labs(x="Hours") +
-         # modify x axis text display 
+         # modify x axis text display
          theme(axis.text.x = element_text(angle=45,hjust=1)) +
-         # generate the facet grid 
-         facet_grid(variable ~ ., scales = "free_y") + 
+         # generate the facet grid
+         facet_grid(variable ~ ., scales = "free_y") +
          theme(legend.position = "none") +
          theme(plot.title = element_text(family = "Trebuchet MS", color="#666666", face="bold", size=24, hjust=0))
       })
-    # output plot when second is  no selection, the plot is the trend plot of temperature regarding the input city 
-     output$plot1 = renderPlot({
-       ggplot(result(), aes(x = time, y = result()$temperature)) +
-         geom_line() +
-         # set ggplot title name
-         ggtitle(paste("Temperature record in", input$city)) +
-         # transform x axis into hourly time format
-         scale_x_datetime(labels = date_format("%y/%m/%d :%H:%M"), breaks=pretty_breaks(n=45)) +
-         # modify x axis text display 
-         theme(axis.text.x = element_text(angle=45,hjust=1)) + 
-         # modify labs of x and y axis 
-         labs(x="Hours",y="Temperature") + 
-         # modify title font and size 
-         theme(plot.title = element_text(family = "Trebuchet MS", color="#666666", face="bold", size=24, hjust=0))
-     })
+    # output plot when second is  no selection, the plot is the trend plot of temperature regarding the input city
+    output$plot1 = renderPlot({
+      ggplot(result(), aes(x = time, y = result()$temperature)) +
+        geom_line() +
+        # set ggplot title name
+        ggtitle(paste("Temperature record in", input$city)) +
+        # transform x axis into hourly time format
+        scale_x_datetime(labels = date_format("%y/%m/%d :%H:%M"), breaks=pretty_breaks(n=45)) +
+        # modify x axis text display
+        theme(axis.text.x = element_text(angle=45,hjust=1)) +
+        # modify labs of x and y axis
+        labs(x="Hours",y="Temperature") +
+        # modify title font and size
+        theme(plot.title = element_text(family = "Trebuchet MS", color="#666666", face="bold", size=24, hjust=0))
+    })
   }
 )
 ```
