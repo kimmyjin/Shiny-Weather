@@ -69,9 +69,6 @@ library(lubridate)
 
 
 ```{r}
- date = "2016-11-03"
- key = "3fb318b0ba046bde99d853585774584e"
-
 # get_darksky functions
 get_darksky = function(key, lat, long, date = NULL){
 
@@ -96,23 +93,6 @@ get_darksky = function(key, lat, long, date = NULL){
       url = c(url,url1)
     }
   }
-  # for (i in 1:4){
-  #     newdate = paste(date(date) + i, "12:00:00 EDT")
-  #     print(newdate)
-  # }
-# j1 = fromJSON(url[1])
-# h1 = as.data.frame(j1$hourly$data)
-# h1$time = anytime(as.numeric(h1$time))
-# j2 = fromJSON(url[2])
-# h2 = as.data.frame(j2$hourly$data)
-# h2$time = anytime(as.numeric(h2$time))
-# j3 = fromJSON(url[3])
-# h3 = as.data.frame(j3$hourly$data)
-# h3$time = anytime(as.numeric(h3$time))
-# j4 = fromJSON(url[4])
-# h4 = as.data.frame(j4$hourly$data)
-# h4$time = anytime(as.numeric(h4$time))
-# m1 = merge(h1,h4, all = TRUE)
 
   #loop over all urls to create a dataframe that including hourly data  
   for(i in seq_along(url)){
